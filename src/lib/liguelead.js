@@ -17,18 +17,25 @@ const PATHS = {
 };
 
 /**
- * Extrai as credenciais LigueLead dos headers da requisicao.
- * O App Studio envia `x-liguelead-token` e `x-liguelead-app-id` a partir
- * dos campos da conexao preenchidos pelo usuario.
+ * Extrai as credenciais LigueLead da requisicao.
+ *
+ * `api-token` SEMPRE vem no header `x-liguelead-token` (auth do App Studio, que
+ * so envia 1 header). `app-id` vem no header `x-liguelead-app-id` (uso direto/curl)
+ * OU no corpo como `app_id` — porque o App Studio nao consegue mandar um 2o header,
+ * entao o app-id viaja no body do workflow.
  * @param {Record<string,any>} headers
+ * @param {Record<string,any>} [body]
  * @returns {{ apiToken: string, appId: string }}
  */
-export function credsFromHeaders(headers) {
+export function credsFromRequest(headers = {}, body = {}) {
   return {
     apiToken: headers['x-liguelead-token'] || '',
-    appId: headers['x-liguelead-app-id'] || '',
+    appId: headers['x-liguelead-app-id'] || body?.app_id || '',
   };
 }
+
+// Compat: versao antiga (so headers).
+export const credsFromHeaders = (headers) => credsFromRequest(headers, {});
 
 function authHeaders(creds) {
   if (!creds?.apiToken || !creds?.appId) {
@@ -92,13 +99,41 @@ export const liguelead = {
   sendVoiceMessage(creds, params) {
     const body = {
       title: params.title,
-      voice_upload_id: params.voice_upload_id,
+      voice_upload_id: Number(params.voice_upload_id),
       phones: params.phones,
     };
-    if (params.retry_attempts != null) body.retry_attempts = params.retry_attempts;
-    if (params.retry_interval_min != null) body.retry_interval_min = params.retry_interval_min;
+    // Os campos de retry chegam como string (formulario do App Studio) — coage.
+    if (params.retry_attempts != null && params.retry_attempts !== '')
+      body.retry_attempts = Number(params.retry_attempts);
+    if (params.retry_interval_min != null && params.retry_interval_min !== '')
+      body.retry_interval_min = Number(params.retry_interval_min);
     if (params.retry_end_time) body.retry_end_time = params.retry_end_time;
     return requestJson(creds, 'POST', PATHS.sendVoice, body);
+  },
+
+  /**
+   * Baixa um audio de uma URL publica e sobe para a LigueLead (multipart).
+   * Usado pelo fluxo do App Studio, que nao tem campo de upload de arquivo:
+   * o usuario informa a URL e o conector faz o upload por tras.
+   * @param {{apiToken,appId}} creds
+   * @param {{ title: string, url: string }} params
+   * @returns {Promise<{status:number,data:any}>} resposta do upload (contem o id)
+   */
+  async uploadVoiceFromUrl(creds, params) {
+    const resp = await fetch(params.url);
+    if (!resp.ok) {
+      throw Object.assign(new Error(`Falha ao baixar audio: ${params.url} -> ${resp.status}`), {
+        statusCode: 422,
+        code: 'audio_url_inacessivel',
+      });
+    }
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    const filename = (params.url.split('?')[0].split('/').pop() || 'audio.mp3');
+    return this.uploadVoiceAudio(creds, {
+      title: params.title,
+      file_base64: buffer.toString('base64'),
+      filename,
+    });
   },
 
   /**

@@ -3,6 +3,7 @@
 import Fastify from 'fastify';
 import { config } from './config.js';
 import healthRoutes from './routes/health.js';
+import connectRoutes from './routes/connect.js';
 import actionRoutes from './routes/actions.js';
 import bulkRoutes from './routes/bulk.js';
 import voiceUploadRoutes from './routes/voiceUploads.js';
@@ -37,6 +38,7 @@ export function buildServer() {
   });
 
   app.register(healthRoutes);
+  app.register(connectRoutes);
   app.register(actionRoutes);
   app.register(bulkRoutes);
   app.register(voiceUploadRoutes);

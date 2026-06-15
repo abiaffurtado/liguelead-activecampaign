@@ -1,73 +1,57 @@
-# App Studio — definição do app na ActiveCampaign
+# App Studio — app nativo da LigueLead na ActiveCampaign
 
-O App Studio é o portal self-service da ActiveCampaign onde se constrói, testa e publica
-apps nativos. Para a LigueLead o app expõe **uma conexão** (credencial) e **três ações** que
-aparecem no builder de automação. As ações chamam os endpoints deste backend conector.
+> **Arquivo para colar no editor:** [`../app-studio/activeCampaign.json`](../app-studio/activeCampaign.json)
 
-> O App Studio usa um schema próprio (DSL/JSON) que evolui. O arquivo
-> [`../app-studio/app.json`](../app-studio/app.json) é uma representação **ilustrativa** do
-> mapeamento ação → endpoint. Ao montar no App Studio real, replique estes campos e URLs.
+Confirmado (a partir do app antigo da LigueLead que funcionava): o App Studio **cria sim
+ações de automação**, via `workflows` com `"type": "automations"`. Cada workflow vira um
+bloco no construtor de automação.
+
+## Por que o app passa pelo conector (e não chama a LigueLead direto)
+
+Três limites do App Studio v2 (confirmados na doc):
+1. O **auth envia só 1 header** — e a API nova exige dois (`api-token` **e** `app-id`).
+2. O comando **`!http` não aceita headers customizados** (só `method`/`path`/`body`).
+3. **Não existe campo de upload de arquivo** (só `text`, `textarea`, `dropdown`, `multiselect`).
+
+Por isso o `base_url` aponta para o **conector** (Vercel), que:
+- recebe o `api-token` no header `x-liguelead-token` (auth do App Studio);
+- recebe o `app_id` no **corpo** de cada ação (campo do formulário);
+- remonta os dois headers e chama a API nova da LigueLead;
+- para voz, **baixa a URL do áudio e faz o upload** para a LigueLead (`/voice/uploads`),
+  já que não há campo de upload de arquivo no App Studio.
+
+## Estrutura do `activeCampaign.json`
+
+- **`api.base_url`** = `https://liguelead-activecampaign.vercel.app`
+- **`auth` (token-auth)**: `header_key` = `x-liguelead-token`, campo `token` (o API Token do
+  usuário); `verify_url` = `/connect`.
+- **`workflows`** (`type: automations`):
+  - `send-a-sms` → `POST /actions/sms`
+  - `send-a-sms-flash` → `POST /actions/sms-flash`
+  - `send-a-voice` → `POST /actions/voice`
+  - Cada um tem `connect` (valida via `/connect`), `select` (formulário do passo) e
+    `data_pipeline` (pega `phone` do contato e faz o POST no conector).
+
+### Campos do formulário (o que o usuário preenche no passo da automação)
+- **SMS / Flash**: `app_id`, `title`, `message`.
+- **Voz**: `app_id`, `title`, `audio_url`, e opcionais `retry_attempts`,
+  `retry_interval_min`, `retry_end_time`.
+
+> O `app_id` é por conta e pode variar (segmenta o uso) — por isso é um campo do passo, e
+> não da conexão. Cada automação pode usar um `app_id` diferente.
 
 ## Passo a passo
 
-1. **Conta de desenvolvedor / App Studio.** Acesse o App Studio na sua conta AC
-   (Settings → Developer / App Studio). Para publicar no marketplace é preciso ser parceiro
-   de tecnologia, mas dá para desenvolver e testar na própria conta antes.
-2. **Hospede o conector** (este repo) numa URL pública HTTPS. Anote a base URL.
-3. **Crie a conexão (Connection).** Campo `apiKey` (a API key da LigueLead do cliente) e o
-   `connectorToken`. O App Studio guarda isso e envia em cada chamada.
-4. **Configure o header de auth** das requisições: `x-connector-token: {{connection.connectorToken}}`.
-5. **Crie as 3 ações** (abaixo). Cada uma mapeia campos → corpo JSON → endpoint.
-6. **Teste** com os logs ao vivo do App Studio, usando um contato real seu.
-7. **Submeta para revisão** e publique.
+1. **App Studio → Build a New App** (já feito: "LigueLead Oficial").
+2. **Start Building** → cole o conteúdo de `app-studio/activeCampaign.json` no editor e **Save**.
+   O validador "Valerie" aponta erros no painel da direita.
+3. **Conecte**: ao usar uma ação numa automação, o App Studio pedirá o **API Token** (campo do
+   auth). O usuário cola o token da LigueLead.
+4. **Teste** numa automação: gatilho (ex.: tag adicionada) → ação `[LigueLead] - Envia um SMS`,
+   preenchendo `app_id`, título e mensagem. Adicione a tag a um contato seu com telefone real.
 
-## Conexão (preenchida por CADA usuário)
-
-Como o app é multi-tenant, a conexão é onde cada usuário coloca as próprias credenciais.
-
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `apiToken` | secret | **API Token** da conta LigueLead (Integrations → API Token) |
-| `appId` | secret | **App ID** da conta LigueLead |
-| `connectorBaseUrl` | url | Base URL do backend conector (onde você fez deploy) |
-
-Configure os headers que o App Studio envia em cada chamada:
-```
-x-liguelead-token: {{connection.apiToken}}
-x-liguelead-app-id: {{connection.appId}}
-```
-O conector repassa essas credenciais para a LigueLead — nada fica armazenado no backend.
-
-## Ações
-
-### 1. LigueLead: Enviar SMS  → `POST {{connectorBaseUrl}}/actions/sms`
-| Campo (UI) | Body | Origem |
-|---|---|---|
-| Mensagem | `message` | texto (suporta merge tags do AC) |
-| Telefone | `phone` | campo de telefone do contato (`%PHONE%`) |
-| Título | `title` | texto opcional |
-
-### 2. LigueLead: Enviar SMS Flash  → `POST {{connectorBaseUrl}}/actions/sms-flash`
-Mesmos campos da ação de SMS. O backend rejeita mensagens com URL (regra do Flash).
-
-### 3. LigueLead: Enviar Ligação  → `POST {{connectorBaseUrl}}/actions/voice`
-| Campo (UI) | Body | Origem |
-|---|---|---|
-| Áudio | `voice_upload_id` | **dropdown dinâmico** populado por `GET /voice-uploads` |
-| Título | `title` | texto |
-| Telefone | `phone` | campo de telefone do contato |
-
-O dropdown de áudio consome `GET /voice-uploads`, que já retorna `{ options: [{value,label}] }`.
-
-## Gatilhos
-
-Os gatilhos são os **nativos do ActiveCampaign** (tag adicionada, contato entra na lista,
-campo alterado, data, etc.). Não é preciso criar gatilho customizado: basta usar as ações
-acima como passos dentro de qualquer automação.
-
-## Disparo em massa
-
-O App Studio é voltado a ações por contato. Para massa, use o **painel próprio** servido
-pelo backend (`POST /bulk/send`) — seja como página dentro do app (se o App Studio permitir
-páginas customizadas) ou como app web separado autenticado pelo `connectorToken`. Ele resolve
-contatos por lista/tag do AC, por CSV ou por lista direta, e dispara em lotes de 10.000.
+## Limitação conhecida — upload de áudio
+O App Studio não tem campo de upload de arquivo. O áudio é informado por **URL pública**
+(MP3/WAV) e o conector faz o upload para a LigueLead automaticamente. Se for necessário um
+seletor de arquivo de verdade, isso não é suportado pela plataforma — seria preciso um fluxo
+fora do App Studio (ex.: subir pela área do cliente da LigueLead).

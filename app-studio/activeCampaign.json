@@ -1,0 +1,168 @@
+{
+  "_comment": "App Studio v2 da LigueLead (API nova). Mesmo modelo do app antigo, mas base_url aponta para o CONECTOR (Vercel), que adiciona o 2o header (app-id), normaliza telefone e faz o upload de audio por URL. Cole este JSON no editor do App Studio.",
+  "$version": "2",
+  "api": {
+    "base_url": "https://liguelead-activecampaign.vercel.app"
+  },
+  "auth": {
+    "token-auth": {
+      "_comment": "App Studio so envia 1 header de auth. Mandamos o api-token em x-liguelead-token. O app-id vai no corpo de cada acao (campo do formulario).",
+      "type": "token",
+      "header_key": "x-liguelead-token",
+      "verify_url": "https://liguelead-activecampaign.vercel.app/connect",
+      "defined_fields": {
+        "token": {
+          "label": "API Token",
+          "placeholder": "Informe seu API Token da LigueLead",
+          "help_text": "Disponivel em Integrations -> API Token na sua area do cliente LigueLead"
+        }
+      }
+    }
+  },
+  "workflows": [
+    {
+      "name": "send-a-sms",
+      "label": "[LigueLead] - Envia um SMS",
+      "description": "Envia um SMS pela LigueLead",
+      "type": "automations",
+      "auth": "token-auth",
+      "setup": {
+        "connect": {
+          "label": "Conectar",
+          "describe_connection": {
+            "!pipe": [
+              { "!http": { "method": "GET", "path": "/connect" } },
+              { "!jq": ".account | {account_id: .id, description: .description}" }
+            ]
+          }
+        },
+        "select": {
+          "label": "Configurar SMS",
+          "form_fields": [
+            { "id": "app_id", "label": "App ID", "type": "text", "required": true },
+            { "id": "title", "label": "Titulo da campanha", "type": "text", "required": true },
+            { "id": "message", "label": "Conteudo do SMS", "type": "textarea", "required": true }
+          ]
+        }
+      },
+      "data_pipeline": {
+        "source": { "!resource": "ActiveCampaignContact" },
+        "target": {
+          "!pipe": [
+            { "!jq": "${piped_content.0.phone}" },
+            {
+              "!http": {
+                "method": "POST",
+                "path": "/actions/sms",
+                "body": {
+                  "app_id": "${custom_data.app_id.value}",
+                  "title": "${custom_data.title.value}",
+                  "message": "${custom_data.message.value}",
+                  "phone": "${piped_content.1}"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "send-a-sms-flash",
+      "label": "[LigueLead] - Envia um SMS Flash",
+      "description": "Envia um SMS Flash pela LigueLead (sem links)",
+      "type": "automations",
+      "auth": "token-auth",
+      "setup": {
+        "connect": {
+          "label": "Conectar",
+          "describe_connection": {
+            "!pipe": [
+              { "!http": { "method": "GET", "path": "/connect" } },
+              { "!jq": ".account | {account_id: .id, description: .description}" }
+            ]
+          }
+        },
+        "select": {
+          "label": "Configurar SMS Flash",
+          "form_fields": [
+            { "id": "app_id", "label": "App ID", "type": "text", "required": true },
+            { "id": "title", "label": "Titulo da campanha", "type": "text", "required": true },
+            { "id": "message", "label": "Conteudo do SMS Flash (sem links)", "type": "textarea", "required": true }
+          ]
+        }
+      },
+      "data_pipeline": {
+        "source": { "!resource": "ActiveCampaignContact" },
+        "target": {
+          "!pipe": [
+            { "!jq": "${piped_content.0.phone}" },
+            {
+              "!http": {
+                "method": "POST",
+                "path": "/actions/sms-flash",
+                "body": {
+                  "app_id": "${custom_data.app_id.value}",
+                  "title": "${custom_data.title.value}",
+                  "message": "${custom_data.message.value}",
+                  "phone": "${piped_content.1}"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "send-a-voice",
+      "label": "[LigueLead] - Envia uma Ligacao",
+      "description": "Envia uma ligacao (voz) pela LigueLead. Informe a URL do audio; o app faz o upload.",
+      "type": "automations",
+      "auth": "token-auth",
+      "setup": {
+        "connect": {
+          "label": "Conectar",
+          "describe_connection": {
+            "!pipe": [
+              { "!http": { "method": "GET", "path": "/connect" } },
+              { "!jq": ".account | {account_id: .id, description: .description}" }
+            ]
+          }
+        },
+        "select": {
+          "label": "Configurar Ligacao",
+          "form_fields": [
+            { "id": "app_id", "label": "App ID", "type": "text", "required": true },
+            { "id": "title", "label": "Titulo da campanha", "type": "text", "required": true },
+            { "id": "audio_url", "label": "URL do audio (MP3/WAV publico)", "type": "text", "required": true },
+            { "id": "retry_attempts", "label": "Tentativas (1-3)", "type": "text", "required": false },
+            { "id": "retry_interval_min", "label": "Intervalo entre tentativas (min)", "type": "text", "required": false },
+            { "id": "retry_end_time", "label": "Horario limite (HH:MM, ex.: 21:00)", "type": "text", "required": false }
+          ]
+        }
+      },
+      "data_pipeline": {
+        "source": { "!resource": "ActiveCampaignContact" },
+        "target": {
+          "!pipe": [
+            { "!jq": "${piped_content.0.phone}" },
+            {
+              "!http": {
+                "method": "POST",
+                "path": "/actions/voice",
+                "body": {
+                  "app_id": "${custom_data.app_id.value}",
+                  "title": "${custom_data.title.value}",
+                  "audio_url": "${custom_data.audio_url.value}",
+                  "retry_attempts": "${custom_data.retry_attempts.value|default:}",
+                  "retry_interval_min": "${custom_data.retry_interval_min.value|default:}",
+                  "retry_end_time": "${custom_data.retry_end_time.value|default:}",
+                  "phone": "${piped_content.1}"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

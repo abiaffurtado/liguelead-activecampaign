@@ -1,20 +1,19 @@
-// Acoes por contato — sao estes endpoints que as ACOES do App Studio chamam
-// dentro de automacoes e gatilhos. O AC envia 1 contato por vez; por isso
-// cada chamada normalmente carrega 1 telefone, mas aceitamos array para reuso.
+// Acoes por contato — sao estes endpoints que os WORKFLOWS do App Studio
+// (type: "automations") chamam dentro de automacoes e gatilhos.
 //
-// As credenciais LigueLead (api-token / app-id) vem nos headers da requisicao,
-// preenchidas por cada usuario na conexao do App Studio (multi-tenant).
+// Contrato com o App Studio:
+//   - api-token: header `x-liguelead-token` (auth do App Studio).
+//   - app_id:    no CORPO (o App Studio nao consegue mandar 2o header).
+//   - phone:     string crua do contato (ex.: "(11) 99999-8888") — normalizada aqui.
 
 import { normalizePhoneList } from '../lib/phone.js';
 import { estimateSmsCampaign } from '../lib/credits.js';
 import { validateFlashMessage } from '../lib/validators.js';
 import { dialingWindowStatus } from '../lib/dialingWindow.js';
-import { liguelead, credsFromHeaders } from '../lib/liguelead.js';
+import { liguelead, credsFromRequest } from '../lib/liguelead.js';
 
-const phoneItem = {
-  type: 'string',
-  pattern: '^(\\+55\\d{10,11}|55\\d{10,11}|\\d{10,11})$',
-};
+// phone vem como string livre (dados do contato no AC podem ter formatacao).
+const phoneStr = { type: 'string', minLength: 8 };
 
 const smsSchema = {
   body: {
@@ -22,9 +21,10 @@ const smsSchema = {
     required: ['message', 'phone'],
     properties: {
       message: { type: 'string', minLength: 1, maxLength: 1600 },
-      phone: phoneItem,
-      phones: { type: 'array', items: phoneItem, minItems: 1, maxItems: 10000 },
+      phone: phoneStr,
+      phones: { type: 'array', items: phoneStr, minItems: 1, maxItems: 10000 },
       title: { type: 'string' },
+      app_id: { type: 'string' },
     },
   },
 };
@@ -32,15 +32,19 @@ const smsSchema = {
 const voiceSchema = {
   body: {
     type: 'object',
-    required: ['title', 'voice_upload_id', 'phone'],
+    required: ['title', 'phone'],
     properties: {
       title: { type: 'string', minLength: 1 },
-      voice_upload_id: { type: 'integer', exclusiveMinimum: 0 },
-      phone: phoneItem,
-      phones: { type: 'array', items: phoneItem, minItems: 1, maxItems: 10000 },
-      retry_attempts: { type: 'integer', minimum: 1, maximum: 3 },
-      retry_interval_min: { type: 'integer', minimum: 5, maximum: 180 },
-      retry_end_time: { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' },
+      phone: phoneStr,
+      phones: { type: 'array', items: phoneStr, minItems: 1, maxItems: 10000 },
+      app_id: { type: 'string' },
+      // Informe voice_upload_id (audio ja enviado) OU audio_url (sera enviado aqui).
+      voice_upload_id: { type: ['integer', 'string'] },
+      audio_url: { type: 'string' },
+      // Retry chegam como string do formulario do App Studio.
+      retry_attempts: { type: ['integer', 'string'] },
+      retry_interval_min: { type: ['integer', 'string'] },
+      retry_end_time: { type: 'string' },
     },
   },
 };
@@ -62,16 +66,32 @@ export default async function actionRoutes(app) {
   );
 
   app.post('/actions/voice', { schema: voiceSchema }, async (req, reply) => {
-    const creds = credsFromHeaders(req.headers);
+    const creds = credsFromRequest(req.headers, req.body);
     const { valid, invalid } = normalizePhoneList(collectPhones(req.body));
     if (valid.length === 0) {
       return reply.code(422).send({ error: 'nenhum_telefone_valido', invalid });
     }
 
+    // Resolve o audio: usa voice_upload_id se vier, senao sobe a audio_url.
+    let voiceUploadId = req.body.voice_upload_id;
+    if (!voiceUploadId && req.body.audio_url) {
+      const up = await liguelead.uploadVoiceFromUrl(creds, {
+        title: req.body.title,
+        url: req.body.audio_url,
+      });
+      voiceUploadId = up.data?.data?.id ?? up.data?.id;
+    }
+    if (!voiceUploadId) {
+      return reply.code(422).send({
+        error: 'audio_obrigatorio',
+        message: 'Informe voice_upload_id ou audio_url.',
+      });
+    }
+
     const window = dialingWindowStatus();
     const result = await liguelead.sendVoiceMessage(creds, {
       title: req.body.title,
-      voice_upload_id: req.body.voice_upload_id,
+      voice_upload_id: voiceUploadId,
       phones: valid,
       retry_attempts: req.body.retry_attempts,
       retry_interval_min: req.body.retry_interval_min,
@@ -83,6 +103,7 @@ export default async function actionRoutes(app) {
       channel: 'voice',
       accepted: valid.length,
       invalid,
+      voice_upload_id: voiceUploadId,
       dialingWindow: window,
       liguelead: result.data,
     });
@@ -90,7 +111,7 @@ export default async function actionRoutes(app) {
 }
 
 async function handleSms(req, reply, { isFlash }) {
-  const creds = credsFromHeaders(req.headers);
+  const creds = credsFromRequest(req.headers, req.body);
   const { valid, invalid } = normalizePhoneList(collectPhones(req.body));
   if (valid.length === 0) {
     return reply.code(422).send({ error: 'nenhum_telefone_valido', invalid });

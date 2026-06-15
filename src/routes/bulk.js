@@ -14,7 +14,7 @@ import { estimateSmsCampaign } from '../lib/credits.js';
 import { validateFlashMessage, chunk } from '../lib/validators.js';
 import { dialingWindowStatus } from '../lib/dialingWindow.js';
 import { extractPhonesFromCsv } from '../lib/csv.js';
-import { liguelead, credsFromHeaders } from '../lib/liguelead.js';
+import { liguelead, credsFromRequest } from '../lib/liguelead.js';
 import { fetchContactsPhones } from '../activecampaign/client.js';
 
 const bulkSchema = {
@@ -50,7 +50,7 @@ const bulkSchema = {
 export default async function bulkRoutes(app) {
   app.post('/bulk/send', { schema: bulkSchema }, async (req, reply) => {
     const body = req.body;
-    const creds = credsFromHeaders(req.headers);
+    const creds = credsFromRequest(req.headers, req.body);
 
     // 1) Validacao de conteudo conforme canal.
     if (body.channel === 'voice') {
