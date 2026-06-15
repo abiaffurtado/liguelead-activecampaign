@@ -1,0 +1,21 @@
+{
+  "name": "liguelead-activecampaign",
+  "version": "0.1.0",
+  "description": "Conector LigueLead <> ActiveCampaign: SMS, SMS Flash e Ligacao em automacoes, gatilhos e disparo em massa.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js | pino-pretty",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1"
+  },
+  "devDependencies": {
+    "pino-pretty": "^11.2.2"
+  }
+}

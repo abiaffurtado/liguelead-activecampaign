@@ -1,0 +1,8 @@
+node_modules
+.env
+test
+docs
+app-studio
+Dockerfile
+render.yaml
+*.md

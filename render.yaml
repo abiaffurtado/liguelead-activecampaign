@@ -1,0 +1,34 @@
+# Blueprint de deploy para o Render (https://render.com).
+# Cria um Web Service Docker com HTTPS automatico e health check.
+#
+# Como usar:
+#   1. Suba este repo no GitHub.
+#   2. No Render: New -> Blueprint -> aponte para o repo.
+#   3. Preencha os secrets marcados com sync:false (nao vao para o git).
+services:
+  - type: web
+    name: liguelead-activecampaign
+    runtime: docker
+    plan: starter            # evita o "spin down" do free tier (cold start ruim p/ webhook)
+    region: oregon           # troque se preferir outra regiao
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: LOG_LEVEL
+        value: info
+      # As credenciais LigueLead (api-token/app-id) NAO ficam aqui — sao por
+      # usuario, enviadas em cada requisicao (multi-tenant).
+      #
+      # Secrets opcionais — preenchidos no painel do Render, NUNCA no git:
+      - key: CONNECTOR_TOKEN     # opcional: protege o conector em host privado
+        sync: false
+      - key: LIGUELEAD_BASE_URL  # opcional: default ja e https://api.liguelead.com.br/v1
+        sync: false
+      - key: AC_API_URL          # opcional: so para disparo em massa por lista/tag do AC
+        sync: false
+      - key: AC_API_TOKEN
+        sync: false
