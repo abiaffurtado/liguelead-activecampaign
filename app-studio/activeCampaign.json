@@ -1,5 +1,5 @@
 {
-  "_comment": "App Studio v2 da LigueLead (API nova). base_url aponta para o CONECTOR (Vercel). O auth token do App Studio so renderiza 1 campo (o token), entao o app_id e um campo do FORMULARIO de cada acao (e isso permite segmentar o uso por automacao).",
+  "_comment": "App Studio v2 da LigueLead (API nova). base_url aponta para o CONECTOR (Vercel). O App Studio so permite UM campo extra de conexao: o 'subdomain'. Reaproveitamos ele como APP ID (label customizado) e referenciamos como ${subdomain} no corpo das acoes.",
   "$version": "2",
   "api": {
     "base_url": "https://liguelead-activecampaign.vercel.app"
@@ -14,6 +14,11 @@
           "label": "API Token",
           "placeholder": "Informe seu API Token da LigueLead",
           "help_text": "Disponivel em Integrations -> API Token na sua area do cliente LigueLead"
+        },
+        "subdomain": {
+          "label": "App ID",
+          "placeholder": "Informe seu App ID da LigueLead",
+          "help_text": "Identificador da aplicacao (segmenta o uso). Fica na sua area do cliente LigueLead."
         }
       }
     }
@@ -38,7 +43,6 @@
         "select": {
           "label": "Configurar SMS",
           "form_fields": [
-            { "id": "app_id", "label": "App ID", "type": "text", "required": true },
             { "id": "title", "label": "Titulo da campanha", "type": "text", "required": true },
             { "id": "message", "label": "Conteudo do SMS", "type": "textarea", "required": true }
           ]
@@ -54,7 +58,7 @@
                 "method": "POST",
                 "path": "/actions/sms",
                 "body": {
-                  "app_id": "${custom_data.app_id.value}",
+                  "app_id": "${subdomain}",
                   "title": "${custom_data.title.value}",
                   "message": "${custom_data.message.value}",
                   "phone": "${piped_content.1}"
@@ -84,7 +88,6 @@
         "select": {
           "label": "Configurar SMS Flash",
           "form_fields": [
-            { "id": "app_id", "label": "App ID", "type": "text", "required": true },
             { "id": "title", "label": "Titulo da campanha", "type": "text", "required": true },
             { "id": "message", "label": "Conteudo do SMS Flash (sem links)", "type": "textarea", "required": true }
           ]
@@ -100,7 +103,7 @@
                 "method": "POST",
                 "path": "/actions/sms-flash",
                 "body": {
-                  "app_id": "${custom_data.app_id.value}",
+                  "app_id": "${subdomain}",
                   "title": "${custom_data.title.value}",
                   "message": "${custom_data.message.value}",
                   "phone": "${piped_content.1}"
@@ -130,7 +133,6 @@
         "select": {
           "label": "Configurar Ligacao",
           "form_fields": [
-            { "id": "app_id", "label": "App ID", "type": "text", "required": true },
             { "id": "title", "label": "Titulo da campanha", "type": "text", "required": true },
             { "id": "audio_url", "label": "URL do audio (MP3/WAV publico)", "type": "text", "required": true },
             { "id": "retry_attempts", "label": "Tentativas (1-3)", "type": "text", "required": false },
@@ -149,7 +151,7 @@
                 "method": "POST",
                 "path": "/actions/voice",
                 "body": {
-                  "app_id": "${custom_data.app_id.value}",
+                  "app_id": "${subdomain}",
                   "title": "${custom_data.title.value}",
                   "audio_url": "${custom_data.audio_url.value}",
                   "retry_attempts": "${custom_data.retry_attempts.value|default:}",
