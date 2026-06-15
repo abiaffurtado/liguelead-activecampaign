@@ -1,7 +1,34 @@
 # Deploy em produção
 
-O conector é um serviço HTTP stateless. **Não precisa de VPS nem AWS EC2** — uma PaaS
-resolve com HTTPS automático e gestão de secrets. Comparativo:
+> **Deploy atual:** Vercel — produção em **https://liguelead-activecampaign.vercel.app**
+> (repo: https://github.com/abiaffurtado/liguelead-activecampaign).
+> Use essa URL como `connectorBaseUrl` na conexão do App Studio.
+
+## Vercel (serverless) — o que está em uso
+
+O app foi adaptado para rodar como **função serverless** na Vercel:
+- `api/index.js` — encaminha as requisições para a instância Fastify.
+- `vercel.json` — faz todas as rotas caírem nessa função (`rewrites`) e define `maxDuration`.
+
+Deploy: `vercel --prod` (já linkado ao projeto). Push no GitHub também dispara deploy se a
+integração GitHub↔Vercel estiver ativada.
+
+### ⚠️ Dois limites da Vercel a considerar
+1. **Tamanho do corpo (~4.5 MB).** O upload de áudio de voz via base64 (até 50 MB) **não
+   passa** pela função serverless da Vercel. SMS, SMS Flash, envio de voz e listagem de
+   áudios funcionam normalmente (payloads pequenos). Para subir áudios grandes, faça o upload
+   pela **área do cliente da LigueLead** (e use o `voice_upload_id` resultante na ação), ou
+   hospede só a rota de upload em um host sem esse limite (ex.: Render/Docker).
+2. **Tempo de execução (`maxDuration`, 60s aqui).** Disparos em massa muito grandes (muitos
+   lotes ou paginação de milhares de contatos do AC) podem estourar o tempo da função. Para
+   volume alto, prefira um host sempre-ligado para o `/bulk/send` ou processe em lotes menores.
+
+---
+
+## Alternativas (host sempre-ligado, sem os limites acima)
+
+O conector também roda como serviço HTTP normal (Docker/`Dockerfile` e `render.yaml` inclusos).
+**Não precisa de VPS nem AWS EC2.** Comparativo:
 
 | Plataforma | Esforço | Observação |
 |---|---|---|
