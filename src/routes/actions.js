@@ -8,7 +8,7 @@
 
 import { normalizePhoneList } from '../lib/phone.js';
 import { estimateSmsCampaign } from '../lib/credits.js';
-import { validateFlashMessage } from '../lib/validators.js';
+import { validateFlashMessage, validateVoiceRetry } from '../lib/validators.js';
 import { dialingWindowStatus } from '../lib/dialingWindow.js';
 import { liguelead, credsFromRequest } from '../lib/liguelead.js';
 
@@ -70,6 +70,13 @@ export default async function actionRoutes(app) {
     const { valid, invalid } = normalizePhoneList(collectPhones(req.body));
     if (valid.length === 0) {
       return reply.code(422).send({ error: 'nenhum_telefone_valido', invalid });
+    }
+
+    // Valida os parametros de retry ANTES de baixar/subir o audio (falha rapido,
+    // evita upload inutil). A API LigueLead tambem rejeitaria, mas com 422 cru.
+    const retryErrors = validateVoiceRetry(req.body);
+    if (retryErrors.length) {
+      return reply.code(422).send({ error: 'retry_invalido', detalhes: retryErrors });
     }
 
     // Resolve o audio: usa voice_upload_id se vier, senao sobe a audio_url.

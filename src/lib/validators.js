@@ -36,6 +36,40 @@ const AUDIO_MIME_BY_EXT = {
 };
 
 /**
+ * Valida os parametros OPCIONAIS de retry de uma campanha de voz, antes de chamar
+ * a API LigueLead (que rejeita com 422). So valida o que foi informado. Os campos
+ * chegam como string (formulario do App Studio) ou number. Retorna lista de erros
+ * (vazia = ok). Limites: tentativas 1-3, intervalo >= 5 min, horario HH:MM.
+ * @param {{ retry_attempts?: any, retry_interval_min?: any, retry_end_time?: any }} [params]
+ * @returns {string[]}
+ */
+export function validateVoiceRetry({ retry_attempts, retry_interval_min, retry_end_time } = {}) {
+  const errors = [];
+
+  if (retry_attempts != null && retry_attempts !== '') {
+    const n = Number(retry_attempts);
+    if (!Number.isInteger(n) || n < 1 || n > 3) {
+      errors.push('Tentativas (retry_attempts) deve ser um inteiro entre 1 e 3.');
+    }
+  }
+
+  if (retry_interval_min != null && retry_interval_min !== '') {
+    const n = Number(retry_interval_min);
+    if (!Number.isFinite(n) || n < 5) {
+      errors.push('Intervalo entre tentativas (retry_interval_min) deve ser >= 5 minutos.');
+    }
+  }
+
+  if (retry_end_time != null && retry_end_time !== '') {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(retry_end_time))) {
+      errors.push('Horario limite (retry_end_time) deve estar no formato HH:MM (ex.: 21:00).');
+    }
+  }
+
+  return errors;
+}
+
+/**
  * Resolve a extensao de um nome/URL de arquivo de audio e o MIME correspondente.
  * @param {string} nameOrUrl
  * @returns {{ ok: true, ext: string, mime: string } | { ok: false, ext: string }}

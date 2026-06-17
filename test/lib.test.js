@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { normalizePhone, normalizePhoneList } from '../src/lib/phone.js';
 import { creditsPerMessage, estimateSmsCampaign } from '../src/lib/credits.js';
-import { containsUrl, validateFlashMessage, chunk, resolveAudioType } from '../src/lib/validators.js';
+import { containsUrl, validateFlashMessage, chunk, resolveAudioType, validateVoiceRetry } from '../src/lib/validators.js';
 import { extractPhonesFromCsv } from '../src/lib/csv.js';
 import { credsFromHeaders } from '../src/lib/liguelead.js';
 
@@ -72,6 +72,16 @@ test('resolveAudioType mapeia extensao para MIME e rejeita formato invalido', ()
   assert.equal(resolveAudioType('https://x.com/a%20b.mp3?v=1#t').mime, 'audio/mpeg');
   assert.equal(resolveAudioType('audio.ogg').ok, false);
   assert.equal(resolveAudioType('semextensao').ok, false);
+});
+
+test('validateVoiceRetry valida limites (1-3, >=5min, HH:MM) e ignora vazios', () => {
+  assert.deepEqual(validateVoiceRetry({}), []); // nada informado = ok
+  assert.deepEqual(validateVoiceRetry({ retry_attempts: '2', retry_interval_min: '5', retry_end_time: '21:00' }), []);
+  assert.equal(validateVoiceRetry({ retry_interval_min: 1 }).length, 1); // < 5
+  assert.equal(validateVoiceRetry({ retry_attempts: 0 }).length, 1); // fora de 1-3
+  assert.equal(validateVoiceRetry({ retry_attempts: 4 }).length, 1);
+  assert.equal(validateVoiceRetry({ retry_end_time: '25:00' }).length, 1); // hora invalida
+  assert.equal(validateVoiceRetry({ retry_end_time: '9:00' }).length, 1); // sem zero a esquerda
 });
 
 test('credsFromHeaders le api-token e app-id dos headers', () => {
