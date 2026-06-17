@@ -25,8 +25,8 @@
   "workflows": [
     {
       "name": "send-a-sms",
-      "label": "[LigueLead] - Envia um SMS",
-      "description": "Envia um SMS pela LigueLead",
+      "label": "LigueLead - Enviar SMS",
+      "description": "Envia um SMS para o contato pela LigueLead.",
       "type": "automations",
       "auth": "token-auth",
       "setup": {
@@ -70,8 +70,8 @@
     },
     {
       "name": "send-a-sms-flash",
-      "label": "[LigueLead] - Envia um SMS Flash",
-      "description": "Envia um SMS Flash pela LigueLead (sem links)",
+      "label": "LigueLead - Enviar SMS Flash",
+      "description": "Envia um SMS Flash (sem links) para o contato pela LigueLead.",
       "type": "automations",
       "auth": "token-auth",
       "setup": {
@@ -115,8 +115,8 @@
     },
     {
       "name": "send-a-voice",
-      "label": "[LigueLead] - Envia uma Ligacao",
-      "description": "Envia uma ligacao (voz) pela LigueLead. Informe a URL do audio; o app faz o upload.",
+      "label": "LigueLead - Enviar Ligacao de Voz",
+      "description": "Envia uma ligacao de voz para o contato pela LigueLead; informe a URL do audio e o app faz o upload.",
       "type": "automations",
       "auth": "token-auth",
       "setup": {
