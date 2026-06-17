@@ -7,6 +7,7 @@
 // Autenticacao = headers `api-token` e `app-id`. Base URL ja inclui /v1.
 
 import { config } from '../config.js';
+import { resolveAudioType } from './validators.js';
 
 const PATHS = {
   sendSms: '/sms',
@@ -120,6 +121,15 @@ export const liguelead = {
    * @returns {Promise<{status:number,data:any}>} resposta do upload (contem o id)
    */
   async uploadVoiceFromUrl(creds, params) {
+    const filename = (params.url.split('?')[0].split('/').pop() || 'audio.mp3');
+    // Valida a extensao ANTES de baixar — evita download inutil e da erro amigavel.
+    const type = resolveAudioType(filename);
+    if (!type.ok) {
+      throw Object.assign(
+        new Error(`Formato de audio nao suportado (".${type.ext}"). Use .mp3 ou .wav.`),
+        { statusCode: 422, code: 'audio_formato_invalido' },
+      );
+    }
     const resp = await fetch(params.url);
     if (!resp.ok) {
       throw Object.assign(new Error(`Falha ao baixar audio: ${params.url} -> ${resp.status}`), {
@@ -128,11 +138,11 @@ export const liguelead = {
       });
     }
     const buffer = Buffer.from(await resp.arrayBuffer());
-    const filename = (params.url.split('?')[0].split('/').pop() || 'audio.mp3');
     return this.uploadVoiceAudio(creds, {
       title: params.title,
       file_base64: buffer.toString('base64'),
       filename,
+      contentType: type.mime,
     });
   },
 
@@ -144,10 +154,14 @@ export const liguelead = {
    */
   async uploadVoiceAudio(creds, params) {
     const buffer = Buffer.from(params.file_base64, 'base64');
+    // A LigueLead valida o MIME type da parte do arquivo; sem isso o Blob vai como
+    // application/octet-stream e a API rejeita (415). Deriva da extensao se preciso.
+    const contentType =
+      params.contentType || resolveAudioType(params.filename).mime || 'application/octet-stream';
     const form = new FormData();
     form.append('title', params.title);
-    form.append('file', new Blob([buffer]), params.filename);
-    // Nao definimos Content-Type: o fetch monta o boundary do multipart.
+    form.append('file', new Blob([buffer], { type: contentType }), params.filename);
+    // Nao definimos Content-Type do request: o fetch monta o boundary do multipart.
     const res = await fetch(`${config.liguelead.baseUrl}${PATHS.uploadVoice}`, {
       method: 'POST',
       headers: { ...authHeaders(creds), Accept: 'application/json' },

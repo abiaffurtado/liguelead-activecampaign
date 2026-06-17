@@ -28,6 +28,26 @@ export function validateFlashMessage(message) {
   return errors;
 }
 
+// Formatos de audio aceitos pela LigueLead na voz (extensao -> MIME type).
+// A API valida AMBOS: extensao do arquivo E Content-Type da parte multipart.
+const AUDIO_MIME_BY_EXT = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+};
+
+/**
+ * Resolve a extensao de um nome/URL de arquivo de audio e o MIME correspondente.
+ * @param {string} nameOrUrl
+ * @returns {{ ok: true, ext: string, mime: string } | { ok: false, ext: string }}
+ */
+export function resolveAudioType(nameOrUrl) {
+  const clean = String(nameOrUrl).split('?')[0].split('#')[0];
+  const ext = (clean.split('.').pop() || '').toLowerCase();
+  const mime = AUDIO_MIME_BY_EXT[ext];
+  if (!mime) return { ok: false, ext };
+  return { ok: true, ext, mime };
+}
+
 /**
  * Divide um array em lotes de tamanho maximo (default: limite da LigueLead).
  * @template T

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { normalizePhone, normalizePhoneList } from '../src/lib/phone.js';
 import { creditsPerMessage, estimateSmsCampaign } from '../src/lib/credits.js';
-import { containsUrl, validateFlashMessage, chunk } from '../src/lib/validators.js';
+import { containsUrl, validateFlashMessage, chunk, resolveAudioType } from '../src/lib/validators.js';
 import { extractPhonesFromCsv } from '../src/lib/csv.js';
 import { credsFromHeaders } from '../src/lib/liguelead.js';
 
@@ -63,6 +63,15 @@ test('extractPhonesFromCsv le coluna telefone com separador ; e ,', () => {
   assert.deepEqual(extractPhonesFromCsv(csv1), ['11999998888', '11988887777']);
   const csv2 = 'phone,email\n11999998888,a@b.com';
   assert.deepEqual(extractPhonesFromCsv(csv2), ['11999998888']);
+});
+
+test('resolveAudioType mapeia extensao para MIME e rejeita formato invalido', () => {
+  assert.deepEqual(resolveAudioType('audio.mp3'), { ok: true, ext: 'mp3', mime: 'audio/mpeg' });
+  assert.deepEqual(resolveAudioType('AUDIO.WAV'), { ok: true, ext: 'wav', mime: 'audio/wav' });
+  // ignora query string e fragmento na URL
+  assert.equal(resolveAudioType('https://x.com/a%20b.mp3?v=1#t').mime, 'audio/mpeg');
+  assert.equal(resolveAudioType('audio.ogg').ok, false);
+  assert.equal(resolveAudioType('semextensao').ok, false);
 });
 
 test('credsFromHeaders le api-token e app-id dos headers', () => {
